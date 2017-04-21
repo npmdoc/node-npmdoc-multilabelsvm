@@ -1,0 +1,228 @@
+<html><head></head><body><div class="apidocDiv">
+<style>
+/*csslint
+*/
+.apidocDiv {
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+}
+.apidocDiv a[href] {
+    color: #33f;
+    font-weight: bold;
+    text-decoration: none;
+}
+.apidocDiv a[href]:hover {
+    text-decoration: underline;
+}
+.apidocCodeCommentSpan {
+    background: #bbf;
+    color: #000;
+    display: block;
+}
+.apidocCodeKeywordSpan {
+    color: #d00;
+    font-weight: bold;
+}
+.apidocCodePre {
+    background: #eef;
+    border: 1px solid;
+    color: #777;
+    padding: 5px;
+    white-space: pre-wrap;
+}
+.apidocFooterDiv {
+    margin-top: 20px;
+    text-align: center;
+}
+.apidocModuleLi {
+    margin-top: 10px;
+}
+.apidocSectionDiv {
+    border-top: 1px solid;
+    margin-top: 20px;
+}
+.apidocSignatureSpan {
+    color: #777;
+    font-weight: bold;
+}
+</style>
+<h1>api documentation for
+    <a>multilabelsvm (v1.0.4)</a>
+</h1>
+<h4>multilabel svm classifier for browser/nodejs</h4>
+<div class="apidocSectionDiv"><a href="#apidoc.tableOfContents" id="apidoc.tableOfContents"><h1>table of contents</h1></a><ol>
+
+    <li class="apidocModuleLi"><a href="#apidoc.module.multilabelsvm">module multilabelsvm</a><ol>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.multilabelsvm.Classifier">
+            function <span class="apidocSignatureSpan">multilabelsvm.</span>Classifier
+            <span class="apidocSignatureSpan">(options)</span>
+            </a>
+
+        </li>
+
+    </ol></li>
+
+</ol></div>
+
+<div class="apidocSectionDiv">
+<h1><a href="#apidoc.module.multilabelsvm" id="apidoc.module.multilabelsvm">module multilabelsvm</a></h1>
+
+
+    <h2>
+        <a href="#apidoc.element.multilabelsvm.Classifier" id="apidoc.element.multilabelsvm.Classifier">
+        function <span class="apidocSignatureSpan">multilabelsvm.</span>Classifier
+        <span class="apidocSignatureSpan">(options)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">function Classifier(options)
+{
+
+this.labels = [];
+this.classfiers= {};
+options = options || {}
+options.feature = options.feature||{}
+this.bag = new bag(options.feature);
+this.options=options ||{
+	C : 1.0,
+	tol : 1e-4,
+	alphatol : 1e-7,
+	maxiter : 10000,
+	kernel : 'rbf',
+	rbfsigma :  0.5,
+	numpasses : 100,
+};		
+
+
+	//creating each classifiers for each label
+	this.createClassifiers = function(){
+			for(var i in this.labels )
+			this.classfiers[this.labels[i]] = new svm.SVM();
+		
+	
+	}//end of createClassifiers
+	
+	//initialize classifier by taking data from the training set.
+	this.initializeClassifiers = function(data){
+		for( var i in data){		
+			this.bag.addStringFeatures(data[i].input);
+			this.labels.push(data[i].output);
+		}	
+		
+		
+		this.labels = this.bag.unique(this.labels);
+		this.createClassifiers(this.labels);
+		
+	}
+	
+
+	this.trainBatch = function(data){
+	
+		this.initializeClassifiers(data);
+		for( var c in this.classfiers){
+			var trainSet = [];
+			var labels = [];
+	
+			for( var i in data){
+				trainSet.push(this.bag.createFeatureVector(this.bag.str2arr(data[i].input)));//creating featurevector foreach document.			
+				if(c == data[i].output) //keeping binary
+					labels.push(1)
+				else
+					labels.push(-1);
+		
+			}
+			//console.log(trainSet ,labels);
+		this.classfiers[c].train(trainSet,labels,this.options);	
+		}
+
+	}
+	//end of train batch.
+	
+	//classification classify each classifiers and combine their result into single class.
+	this.classify=function(text){
+	
+	feature = this.bag.createFeatureVector(this.bag.str2arr(text))
+	var	result ={}			
+	var prediction=[];
+	for( var c in this.classfiers){
+		result[c] = this.classfiers[c].marginOne(feature);
+								
+	}
+	return (this.getMaxFvalue(result));	
+	
+	}//end of classify
+
+	//gets maximum value of prediction.
+	this.getMaxFvalue = function(obj){
+	max = -1;
+	label='0'
+		for(var i in obj){
+			if(obj[i] &gt; max ){
+				max = obj[i];
+				label =i;
+			}
+		}
+	return label;
+	}
+	
+	this.fromJSON=function(json){
+	
+	
+	for(var j in json.cfiers)
+		this.labels.push(j);
+		
+	this.createClassifiers(this.labels);
+	//importing classsifiers
+	for( var c in this.classfiers)
+		this.classfiers[c].fromJSON(json['cfiers'][c]);
+	//importing bag model	
+	for(var b in json.bag)
+		this.bag[b] = json.bag[b];
+		
+	}
+	this.toJSON=function(){
+		var json = {'bag':{},'cfiers':{}};	
+		//exporting classifiers keyed by label.
+		for( var c in this.classfiers)
+			json['cfiers'][c] =  this.classfiers[c].toJSON();	
+		//exporting bag 	
+		json['bag']['features'] = this.bag.features;
+		json['bag']['ngrams'] = this.bag.ngrams;
+		json['bag']['casesensitive'] = this.bag.casesensitive;		
+		
+		return json;		
+	}
+
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">...
+```
+for svm kernel option refer svmjs
+
+initialize the classifier as the following
+
+```
+	var multilabel = require('multilabelsvm' );
+	var actionClassifier = new multilabel.<span class="apidocCodeKeywordSpan">Classifier</span>({kernel : 'linear'});
+```
+
+### browser
+
+You need to include svmjs for this.
+
+```javascript
+...</pre></li>
+    </ul>
+
+
+</div>
+
+<div class="apidocFooterDiv">
+    [ this document was created with
+    <a href="https://github.com/kaizhu256/node-utility2" target="_blank">utility2</a>
+    ]
+</div>
+</div>
+</body></html>
